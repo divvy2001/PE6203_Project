@@ -19,6 +19,7 @@ def extract_text(image_path: str) -> tuple[str, float]:
 
     # Combine all detected text into one string
     extracted_text = " ".join(texts)
+    extracted_text = extracted_text.capitalize()
     return extracted_text, average_confidence
 
 """def main():
