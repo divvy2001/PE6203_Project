@@ -11,12 +11,14 @@ import streamlit as st
 from PIL import Image, UnidentifiedImageError
 
 try:
-    from chain import analyse_label
     from ocr import extract_text
 except ImportError:
     def extract_text(path: str) -> tuple[str, float]:
         return ("Ingredients: wheat flour, sugar, palm oil, salt, sodium nitrite, titanium dioxide, aspartame, natural flavouring.", 0.96)
 
+try:
+    from chain import analyse_label
+except ImportError:
     def analyse_label(text: str) -> dict[str, Any]:
         verdicts = {"wheat flour": "ok", "sugar": "care", "palm oil": "care", "salt": "care", "sodium nitrite": "avoid", "titanium dioxide": "avoid", "aspartame": "care", "natural flavouring": "ok"}
         data = {
@@ -47,6 +49,8 @@ COPY = {
         "ocr_running": "Reading the label…", "audit_running": "Matching ingredients to regulatory evidence…",
         "image_error": "This file could not be read as an image. Choose a valid PNG, JPG or JPEG file.",
         "ocr_error": "The label could not be read. Try a clearer image or enter the ingredients manually.",
+        "ocr_empty": "No readable text was found. Try a clearer, closer photo or enter the ingredients manually.",
+        "ocr_low_confidence": "Some text may have been read incorrectly. Please review and correct it before running the audit.",
         "audit_error": "The audit could not be completed. Your ingredient text is still available; please try again.",
         "results": "3. Compliance verdict", "overall_safe": "No restricted ingredients found",
         "overall_attention": "Review before deciding", "overall_restricted": "Restricted ingredient found",
@@ -68,6 +72,8 @@ COPY = {
         "ocr_running": "正在识别配料表…", "audit_running": "正在匹配配料与监管依据…",
         "image_error": "无法读取这张图片，请选择有效的 PNG、JPG 或 JPEG 文件。",
         "ocr_error": "没有成功识别配料表。请换一张更清晰的图片，或手动输入配料。",
+        "ocr_empty": "图片中没有识别到清晰文字。请换一张更清楚、更近的照片，或手动输入配料。",
+        "ocr_low_confidence": "部分文字的识别置信度较低，请在执行审查前核对并修正识别结果。",
         "audit_error": "暂时无法完成审查。配料文本已保留，请稍后重试。",
         "results": "3. 合规审查结论", "overall_safe": "未发现受限配料", "overall_attention": "建议核对后再判断", "overall_restricted": "发现受限配料",
         "safe": "允许使用", "care": "需要注意", "avoid": "受限 / 避免", "unknown": "知识库未收录",
@@ -138,10 +144,15 @@ def process_upload(uploaded: Any, copy: dict[str, str]) -> None:
             temp_file.write(payload)
             temp_path = temp_file.name
         with st.spinner(copy["ocr_running"]):
-            extracted, _confidence = extract_text(temp_path)
-        st.session_state.ocr_text = str(extracted or "").strip()
+            extracted, confidence = extract_text(temp_path)
+        extracted_text = str(extracted or "").strip()
+        st.session_state.ocr_text = extracted_text
         st.session_state.analysis_result = None
         st.session_state.uploaded_signature = signature
+        if not extracted_text:
+            st.warning(copy["ocr_empty"], icon=":material/image_search:")
+        elif isinstance(confidence, (int, float)) and confidence < 0.5:
+            st.warning(copy["ocr_low_confidence"], icon=":material/visibility:")
     except Exception:
         st.error(copy["ocr_error"], icon=":material/document_scanner:")
     finally:
