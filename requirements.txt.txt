@@ -1,0 +1,6 @@
+streamlit
+pillow
+requests
+python-dotenv
+opencv-python-headless
+pinecone
